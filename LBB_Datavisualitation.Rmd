@@ -1,0 +1,310 @@
+---
+title: "LBB Data Visualization Electric Vehicle"
+author: "Muh Amri Sidiq"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: true
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+# clear-up the environment
+rm(list = ls())
+
+# chunk options
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  comment = "#>"
+)
+
+options(scipen = 999)
+```
+
+
+
+# Introduction
+The definition or definition of an electric car is a vehicle that is fully or partially driven by a motor using electricity in a battery. The battery is rechargeable. In this data, there are 2 types of batteries, namely plug-in electric hybrid vehicle (PHEV) and battery electric vehicle (BEV)This data is taken from https://catalog.data.gov/dataset/electric-vehicle-population-data.
+
+
+# Data Preprocessing
+## Import Dataset
+
+We can import data and type data we use csv file
+
+```{r}
+# Read data
+EV_Population <- read.csv("Electric_Vehicle_Population_Data.csv")
+```
+
+## Data Inspection
+
+we use head to see at a glance the contents of the data
+
+```{r}
+# Inspection data
+head(EV_Population)
+```
+
+To see the data structure we use library Tidyverse
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# Check data
+glimpse(EV_Population)
+```
+
+This data use 17 coloumns and 135.038 row, Data from https://catalog.data.gov/dataset/electric-vehicle-population-data. Explain coloumn this below:
+
+	-  VIN (1-10) = The 1st 10 characters of each vehicle's Vehicle Identification Number (VIN).
+	- County = This is the geographic region of a state that a vehicle's owner is listed to reside within. Vehicles registered in Washington state may be located in other states
+	- City = The city in which the registered owner resides.
+	- State = This is the geographic region of the country associated with the record. These addresses may be located in other states.
+	- Postal Code = The 5 digit zip code in which the registered owner resides.
+	- Model Year =  The model year of the vehicle, determined by decoding the Vehicle Identification Number (VIN).
+	- Make = The manufacturer of the vehicle, determined by decoding the Vehicle Identification Number (VIN).
+	- Model = The model of the vehicle, determined by decoding the Vehicle Identification Number (VIN).
+	- Electric Vehicle Type = This distinguishes the vehicle as all electric or a plug-in hybrid.
+	- Clean Alternative Fuel Vehicle (CAFV) Eligibility = This categorizes vehicle as Clean Alternative Fuel Vehicles (CAFVs) based on the fuel requirement and electric-only range requirement in House Bill 2042 as passed in the 2019 legislative session.
+	- Electric Range = Describes how far a vehicle can travel purely on its electric charge.
+	- Base MSRP = This is the lowest Manufacturer's Suggested Retail Price (MSRP) for any trim level of the model in question.
+	- Legislative District = The specific section of Washington State that the vehicle's owner resides in, as represented in the state legislature.
+	- DOL Vehicle ID = Unique number assigned to each vehicle by Department of Licensing for identification purposes.
+	- Vehicle Location = The center of the ZIP Code for the registered vehicle.
+	- Electric Utility = This is the electric power retail service territories serving the address of the registered vehicle
+	- 2020 Census Tract = The census tract identifier is a combination of the state, county, and census tract codes as assigned by the United States Census Bureau in the 2020 census, also known as Geographic Identifier (GEOID)
+
+## Cleaning Data
+
+for this case we do not use all columns. we will only use columns according to the case we are going to solve
+
+```{r}
+# Delete coloumn
+EV_Population_Clean <-  select(EV_Population,
+       -State,
+       -Postal.Code,
+       -Legislative.District,
+       -Vehicle.Location,
+       -X2020.Census.Tract)
+```
+
+Check Missing values
+
+```{r}
+# Find missing values
+colSums(is.na(EV_Population_Clean))
+```
+
+we can fill in the missing values with 0
+
+```{r}
+# Treatment missing value
+EV_Population_Clean[is.na(EV_Population_Clean)] <- 0
+```
+
+To make it easier to mention the column, we change the name of the column
+
+```{r}
+# Change coloumn name
+colnames(EV_Population_Clean)[7] <- "EV_Type"
+colnames(EV_Population_Clean)[8] <- "CAFV"
+```
+
+
+## Change Data Type
+
+In this case we must change type data. Conversion into correct data type contributes to memory saving and enable data manipulation using specific function designed for each datatype.
+
+```{r}
+# Change type data
+EV_Population_Clean <- mutate(EV_Population_Clean,
+                              County = as.factor(County),
+                              City = as.factor(City),
+                              Make = as.factor(Make),
+                              Model = as.factor(Model))
+```
+
+# Exploratory Data
+
+using summary() to extract the basic statistical information of each column in our EV_Population_Clean dataframe.
+
+```{r}
+# Check summary data
+summary(EV_Population_Clean)
+```
+
+from the data summary we can draw conclusions, for the electrical range the mean is 74.59 and for the base MSRP the mean is 1448
+
+## Distribution Analysis
+
+We can sea King county is most count electric vehicle, we can use histogram for distribution analysis
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+# Aggregation data for county King
+EV_Make <- EV_Population_Clean %>% filter(County == "King" & Electric.Range > 0) %>%  
+			group_by(Make, Electric.Range) %>% 
+  summarise(count_make = n(),.groups = "drop") %>% 
+  arrange(-count_make)
+```
+
+```{r}
+# Plot from EV_Make
+ggplot(data = EV_Make, mapping = aes(x = count_make, y = Make)) +
+  geom_boxplot(fill = "salmon", col = "black") +
+  labs(
+    title = "Count Model In King County Distribution for Each Make",
+    subtitle = "2012 - 2023",
+    x = "Count Model",
+    y = NULL
+  )
+```
+
+The most use electrical vehicle is TESLA
+
+```{r}
+# Aggregation data for county King
+EV_County_king <- EV_Population_Clean %>% filter(County == "King" & Electric.Range > 0) %>%  
+			group_by(Model) %>% summarise(count_ev = n()) %>% 
+  arrange(-count_ev) %>% 
+  head(10)
+```
+
+
+```{r}
+# Plot form EV_County_king
+ggplot(data = EV_County_king, mapping = aes(x = count_ev, y = reorder(Model, count_ev))) +
+  geom_col(aes(fill = count_ev), col = "darkred") + 
+  scale_fill_gradient(low="white", high="darkblue")+
+  geom_label(aes(label = count_ev)) + 
+  labs(
+     title = "Top 10 Model Electrical Vehicle In King County",
+     subtitle = "2012 - 2023",
+     x = "Total Eelctrical Vehicle",
+     y = NULL,
+     caption = "Source: catalog.data.gov"
+   )
+```
+
+the most electrical vehicle in the KING area is Model 3 (TESLA)
+
+```{r}
+# Aggregation data for county King
+EV_king_type <- EV_Population_Clean %>% 
+  filter(County == "King") %>% 
+  group_by(Make, EV_Type) %>% 
+  summarise(count_make = n(),.groups = "drop") %>% 
+  arrange(-count_make) %>% 
+  head(10)
+```
+
+```{r}
+# Plot from EV_king_type
+ggplot(EV_king_type, mapping = aes(x = count_make, y = reorder(Make, count_make)))+
+  geom_col(aes(fill = EV_Type), position = "fill")+
+   labs(
+     title = "Top 10 Make in King County",
+     subtitle = "Make Vs Electrical Vehicle type",
+     x = "Total Make",
+     y = NULL,
+     fill = "Eelctrical Vehicle Type",
+     caption = "Source: catalog.data.gov"
+   ) + theme_light()
+```
+
+From the histogram above, we can draw insight:TESLA, NISSAN, VOLKSWAGEN, and KIA use Battery Eelectrical Vehicles. BMW, TOYOTA, JEEP and FORD use Plug-in Hybrid Electrical Vehicles. whereas CHEVROLET has both battery types
+
+```{r}
+# Aggregation data for county King
+EV_king_cafv <- EV_Population_Clean %>% 
+  filter(County == "King") %>% 
+  group_by(Make, CAFV) %>% 
+  summarise(count_cafv = n(),.groups = "drop") %>% 
+  arrange(-count_cafv) %>% 
+  head(10)
+```
+
+```{r}
+# Plot from EV_king_type
+ggplot(EV_king_cafv, mapping = aes(x = count_cafv, y = reorder(Make, count_cafv)))+
+  geom_col(aes(fill = CAFV), position = "fill")+
+   labs(
+     title = "Top 10 Make in King County CAFV",
+     subtitle = "Make Vs CAFV",
+     x = "Total Make",
+     y = NULL,
+     fill = "CAFV",
+     caption = "Source: catalog.data.gov"
+   ) + theme_light()
+```
+
+From the histogram above, we can see insight:TESLA and CHEVROLET use clean alternative fuel vehicle eligible and eligibility unknown as battery range has not been researched. BMW and NISSAN use clean alternative fuel vehicle eligible. JEEP, TOYOTA and FORD not eligible due low battery range. VOLKSWAGEN use eligibility unknown as battery range has not been researched
+
+```{r}
+# Aggregation data for county King
+EV_County_king_mean <- EV_Population_Clean %>% 
+  filter(County == "King" & Electric.Range > 0) %>%  group_by(Model) %>% 
+  summarise(avg_range = mean(Electric.Range, round(2)),
+                  length_model = length(Model))%>%
+        arrange(-avg_range)
+
+```
+
+```{r}
+# Plot from EV_County_king_mean
+ggplot(data = EV_County_king_mean, mapping = aes(x = length_model, y = avg_range)) +
+  geom_jitter(mapping = aes(size = avg_range), col = "red", alpha = 0.3) +
+  labs(
+    title = "Average Range Per Count Model Distribution for Each Make",
+    subtitle = "2012 - 2023",
+    x = "Count Model",
+    y = "Average Range",
+    size = "Electrical Range",
+     caption = "Source: catalog.data.gov"
+  )
+```
+
+From the scatter plot above we can conclude:in the KING area there are electrical vehicles that have an electrical range close to 300 miles. There are quite a number of models with an average electrical range of under 100 miles. The number of electrical vehicles has reached 8000
+
+# Explainatory Data
+
+## Corelation
+
+```{r}
+cor(EV_County_king_mean$length_model, EV_County_king_mean$avg_range)
+```
+
+the correlation between the average electrical range and the number of electric vehicles is weak but positive
+
+# Conclusion
+
+* TESLA is most use in county KING
+* we can see type of batter use battery electric vehicle (BEV) and plug-in hybrid electric vehicle (PHEV)
+* In county king only 3 clean alternative vehicle eligible
+
+# Reference
+
+* https://catalog.data.gov/dataset/electric-vehicle-population-data.
+
+
+
+
+
+
+
+
+
+
